@@ -94,3 +94,25 @@ for path in sorted(DATA_DIR.glob("*.csv")):
         print(f"{column}: {kind}")
 
 ## 과제 : 우리 프로젝트 데이터 파일 가져와서 타입추론 해보기.
+
+#PK를 찾아주는 함수
+def infer_pk(columns, rows):
+    # _id로 끝나지 않는 필드명은 제외
+    for col in columns:
+        if not col.endwith("_id"):
+            continue
+
+        # value값이 빈 문자열은 제외
+        values = [r[col] for r in rows]
+        if "" in values:
+            continue
+        # value값이 중복되지 않으면 그건 PK
+        if len(set(values)) == len(values):
+            return col
+
+    # 위의 조건이 모두 만족하지 않는다면 PK가 없으
+    return None
+
+
+
+            
