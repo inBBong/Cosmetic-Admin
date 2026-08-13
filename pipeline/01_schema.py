@@ -113,6 +113,24 @@ def infer_pk(columns, rows):
     # 위의 조건이 모두 만족하지 않는다면 PK가 없으
     return None
 
+# 특정 PK의 주인 테이블 찾기
+def owner_of(column,tables):
+    # 첫번째 인자로 들어온 PK에서 _id 제거 하고 그 뒤에 s, es붙여서
+    # 두번째 인자로 들어온 테이블이름 리스트랑 매칭이 되는 이름을 찾음 (해당PK의 주인 테이블 명)
+    stem =column[:-3]
+    for candidate in (stem, stem+"s", stem + "es"):
+        if candidate in tables:
+            return candidate
+        
+    return None
 
-
-            
+# 1. 모든 테이블 별 필드, 데이터타입, PK 구하기
+table = {}
+for path in sored(DATA_DIR.glob("*.csv")):
+    columns, rows = read_csv(path)
+    table[path.stem] = {
+        "columns":columns,
+        "rows":rows,
+        "type": {col: infer_type([r[col] for r in rows]) for col in columns},
+        "pk": infer_pk(columns,rows)
+    }
