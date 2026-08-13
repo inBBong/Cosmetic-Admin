@@ -32,7 +32,6 @@ for path in sorted(DATA_DIR.glob("*.csv")):
 def looks_int(text):
     # 만약 음수 부호 "-"이 있으면 떼서 저장
     body=text[1:] if text.startswith("-") else text
-    print(f"body: {body}")
     # 0~9가 아닌 글자가 섞여있으면
     if not body.isdigit():
         # 정수가 아님
@@ -58,4 +57,40 @@ def looks_date(text):
     # fullmatch (검증할 정규표현식, 검사할 문자값)
     return re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) is not None
 
+#타입추론 함수 생성
+def infer_type(text):
+    if looks_int(text):
+        return "int"
+    elif looks_float(text):
+        return "float"
+    elif looks_date(text):
+        return "date"
+    else:
+        return "str"
 
+def infer_type(values):
+    #전달된 값에서 빈칸을 제외한 값을 변수에 담음
+    seen = [v for v in values if v != ""]
+
+    if not seen:
+        return "TEXT"
+
+    if all(looks_int(v) for v in seen):
+        return "INTEGER"
+    elif all(looks_float(v) for v in seen):
+        return "REAL"
+    elif all(looks_date(v) for v in seen):
+        return "DATE"
+
+    return "TEXT"
+
+for path in sorted(DATA_DIR.glob("*.csv")):
+    columns, rows = read_csv(path)
+    print(f"\n{path.stem} ({len(rows)})")
+
+    for column in columns:
+        kind = infer_type([row[column] for row in rows])
+
+        print(f"{column}: {kind}")
+
+## 과제 : 우리 프로젝트 데이터 파일 가져와서 타입추론 해보기.
