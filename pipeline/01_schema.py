@@ -99,7 +99,7 @@ for path in sorted(DATA_DIR.glob("*.csv")):
 def infer_pk(columns, rows):
     # _id로 끝나지 않는 필드명은 제외
     for col in columns:
-        if not col.endwith("_id"):
+        if not col.endswith("_id"):
             continue
 
         # value값이 빈 문자열은 제외
@@ -126,7 +126,7 @@ def owner_of(column,tables):
 
 # 1. 모든 테이블 별 필드, 데이터타입, PK 구하기
 table = {}
-for path in sored(DATA_DIR.glob("*.csv")):
+for path in sorted(DATA_DIR.glob("*.csv")):
     columns, rows = read_csv(path)
     table[path.stem] = {
         "columns":columns,
