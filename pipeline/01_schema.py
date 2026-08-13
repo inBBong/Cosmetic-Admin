@@ -134,3 +134,4 @@ for path in sorted(DATA_DIR.glob("*.csv")):
         "type": {col: infer_type([r[col] for r in rows]) for col in columns},
         "pk": infer_pk(columns,rows)
     }
+    print(table["customers"])
