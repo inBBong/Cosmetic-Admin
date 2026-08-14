@@ -9,10 +9,23 @@
 import re
 import csv
 from pathlib import Path
+import sqlite3
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 
+#디비파일 생성위치 지정
+db_file = ROOT / "cosmetic.db"
+
+if db_file.exists():
+    db_file.unlink()
+
+#해당 구문이 실행되는 순간 자동적으로 db파일이 없으면 자동 생성되며 연결
+con =sqlite3.connect(db_file)    
+
+# 외래키 검사 설정
+# PRAGMA는 sqlite 자체 설정을 변경하는 구문, 연결때마다 활성화 시켜야함
+con.execute("PRAGMA foreign_keys=ON")
 # 인자로 csv 파일이 있는 패스 경로를 전달하면 각 파일의 필드명만 리스트형태로 반환하는 함수
 def read_csv(path):
     with open(path, "r", encoding="utf-8", newline="") as f:
@@ -125,13 +138,106 @@ def owner_of(column,tables):
     return None
 
 # 1. 모든 테이블 별 필드, 데이터타입, PK 구하기
-table = {}
+tables = {}
 for path in sorted(DATA_DIR.glob("*.csv")):
     columns, rows = read_csv(path)
-    table[path.stem] = {
+    tables[path.stem] = {
         "columns":columns,
         "rows":rows,
         "type": {col: infer_type([r[col] for r in rows]) for col in columns},
         "pk": infer_pk(columns,rows)
     }
-    print(table["customers"])
+
+# 2. 특정 테이블에 연결되어 있는 외래키 찾기
+for name, table in tables.items(): # 표 이름과 내용을 그룹으로 꺼냄
+    #특정테이블에 복수개의 외래키가 담길 수 있으므로 빈 리스트 생성
+    fks =[]
+
+    #현재 반복도는 테이블의 컬럼명 끝에 _id 없으면 (PK,FK 아님)
+    for col in table["columns"]:
+        if not col.endswith("_id"):
+            continue
+        # 테이블의 PK의 주인 테이블 몇 찾음
+        owner = owner_of(col, table)
+
+        # 현재 반복도는 후보 키값들 중에서 owner값이 동일하면 FK제외 (PK)
+        if not owner or owner ==name:
+            continue
+        if tables[owner]["pk"]!=col:
+            continue
+        #fks란 빈 배열에 FK, 테이블 명 저장
+        fks.append((name, col,owner))
+
+        table["fks"] = fks
+
+        print(fks)
+
+# 3. 테이블 상세 결과 보기
+#for name, table in tables.items():
+#    marks=[]
+#
+#    if table['pk']:
+#        marks.append(f"PK={table['pk']}")
+#
+#    for col, owner in table["fks"]:
+#        print(col)
+
+# 4. 지금까지 생성한 정보로 테이블 생성하는 sql구문 생성 함수
+# 아래는 build_create 함수가 최종적으로 만들어내야 할 SQL 모양 (예시 메모)
+"""
+CREATE TABLE purchases(
+    purchase_id TEXT PRIMARY KEY,
+    customer_id TEXT,
+    quantity INTEGER,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+)
+"""
+
+def build_create(name, table):
+    lines = []
+
+    for col in table["columns"]:
+        piece = f"    {col}{table['type'][col]}"
+
+        if col ==table["pk"]:
+            piece += " PRIMARY KEY"
+
+        lines.append(piece)
+    for col, owner in table["fks"]:
+        print(col)
+        lines.append(f"    FOREIGN KEY ({col}) REFERENCES {owner}({col})")
+
+    return f"CREATE TABLE {name}(\n"+ ",\n".join(lines) + "\n)"
+
+# 현재 모든 테이블명과 테이블 정보를 가져와서 자동으로 모든 테이블 생성 sql문 확인
+for name, table in tables.items():
+    print(build_create(name, table)+";\n")
+
+# 테이블 생성 순서 지정을 위한 함수
+def sort_by_dependency(tables):
+    done = set() #scan이 아니라 search로 리스트에 특정 정보의 존재유무를 빠르게 파악하기 위함
+    order = []  # 실제 어떤 정보값들을 차례대로 담기 위함
+
+    #테이블 생성 sql문이 실행될 순서의 리스트가 다 담길때까지 무한 반복
+    while len(order)<len(tables):
+        moved =False
+
+        #각 csv파일 정보를 반복
+        for name, table in tables.items():
+            if name in done:
+                continue
+            # 현재 반복도는 csv파일 정보에 참조하는 내용이 없으면 
+            # 참조 당하는 테이블이니 우선적으로 order와 done에 담아주고
+            # 이 다음 코드가 무시되면서 다시 다음번 루트로 돌아감
+            if all(owner in done for _, owner in table["fks"]):
+                order.apend(name)
+                done.add(name)
+                moved = True
+        #참조당하는 테이블이 모두 order에 담기면 moved값이 False로 바뀌며
+        #아래 구문이 실행되며 나머지 참조하는 테이블 순서가 모두 이후에 담기게 됨
+        if not moved:
+            order +=[n for n in tables if n not in done]
+            break
+    return order
+
+table_order = sort_by_dependency(tables)
