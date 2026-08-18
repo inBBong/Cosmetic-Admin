@@ -24,7 +24,16 @@ def customer_list(limit=None):
     """
     vip = dicts(sql)
     return vip[:limit] if limit else vip
+#mission : 고객아이디를 인수로 전달해서 해당 고객에 대한 정보와 구매내역을 가져오는 함수를 만들자
+def purchaseInfo(cid):
+    sql="""
+    SELECT *
+    FROM purchases    
+    WHERE customer_id = ?
+    """
+    return dicts(sql,(cid,))
+
 
 if __name__=='__main__':
-    print(customer_list(5))
-    
+    #print(customer_list(5))
+    print(purchaseInfo("C001"))
