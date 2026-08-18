@@ -32,9 +32,18 @@ def dicts(sql,params=()):
     #Cursor객체의 description에는 각 컬럼의 정보가 담겨있음
     cur=con.execute(sql,params)
 
-    columns=[c[0] for c in cur.description]
-    print(columns)
+    columns = [c[0] for c in cur.description]
 
+    return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+    # columns = ["name", "age"]
+    # rows = ("홍길동", 20)
+
+    # zip(columns, rows) 컬럼 이름과 행의 값을 같은 순서끼리 짝지어줌
+    # ("name","홍길동"), ("age", 20)
+    # dict(zip(colums, rows))
+    # {"name":"홍길동", "age": 20}
+    # dict() : zip()으로 만든 짝을 {컬럼명 : 값} 형태의 딕셔너리로 변환
 
 # 해당 파일의 함수는 보통 다른 파일에서 해당 함수를 각각 import 해서 다양하게 조합할때 쓰는 용도
 # 지금 해당 파일을직접 실행해서 결과값을 테스트 하기 위해 직접 호출구문을 아래처럼 넣어버리면
@@ -65,4 +74,4 @@ if __name__ == "__main__":
     #재성이 형님이 올려주신 함수
     print(get_column_names("products"))
 
-    dicts("SELECT name FROM products WHERE price >= ? LIMIT 3",("10000",))
+    print(dicts("SELECT * FROM customers LIMIT 5"))
