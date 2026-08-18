@@ -47,20 +47,47 @@ def dashboard(customer_id):
 
     #상품이름, 카테고리, 가격은 products 표에 있고,
     #구매일, 별점, 후기는 purchases 표에 있으므로 조인해서 한번에 꺼냄
-    products=dicts("""
+    purchases=dicts("""
         SELECT products.product_id, products.name, products.category,products.price,purchases.purchased_at, purchases.rating,purchases.review
         FROM purchases JOIN products ON purchases.product_id=products.product_id -- 구매목록의 상품아이디와 상품목록의 상품아이디가 같은 정보를 조인해서 가져옴        
         WHERE purchases.customer_id=?
     """,(customer_id,))
 
+    ratings = [row["rating"] for row in purchases if row["rating"] is not None]
+
+    prices=[row["price"] for row in purchases if row["price"] is not None]
+
+    #{카테고리: 갯수}를 담은 빈 딕셔너리
+    by_category = {}
+    for row in purchases:
+        by_category[row["category"]] = by_category.get(row["category"],0) + 1
     return {
-        "customers" : profile,
-        "products" : products
+        "customers" : {**profile[0], "n_purchases":len(purchases)},
+        "avg_rating" : round(sum(ratings) / len(ratings),2),
+        "total_spent" : sum(prices),
+        "by_category" : by_category,
+        "purchases" : purchases[0]
+        
     }
 
-
-    
 if __name__=='__main__':
     #print(customer_list(5))
     #print(purchaseInfo("C001"))
-    print(dashboard("C002"))
+    print(dashboard("C005"))
+    '''
+    {'customers': {'customer_id': 'C005', 'name': '이은수', 'age': 53, 'gender': 'F', 'skin_type': '중성', 'city': '부산'},
+     
+     'avg_rating': 3.2,
+     
+     'total_spent': 159600, 
+     
+     'by_category': {'에센스': 3, '클렌징오일': 1, '선크림': 1}, 
+     
+     'purchases': {'product_id': 'P032', 'name': '세라마이드 시카 에센스', 
+     
+     'category': '에센스', 'price': 38800, 
+     
+     'purchased_at': '2025-07-17', 'rating': 3,
+          'review': '기대가 컸나 봐요. 산뜻한 제형이라 아침에 쓰기 좋아요. 
+          재고 문의는 010 8202 9049 로 부탁드려요.'}}
+    '''
