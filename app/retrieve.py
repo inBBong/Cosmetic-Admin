@@ -32,8 +32,35 @@ def purchaseInfo(cid):
     WHERE customer_id = ?
     """
     return dicts(sql,(cid,))
+# 특정 고객 아이디를 집어넣으면 다음의 정보를 반환하는 함수
+# {customers: {고객정보}, avg_rating: 평균평점, total_spent: 구매한 상품의 총 금액,
+#  by_category: 구매한 상품명 + 상품갯수, purchases : 구매횟수 + 리뷰}
+def dashboard(customer_id):    
+    # 기본 고객정보를 별도의 딕셔너리 형태로 변환받음
+    profile = dicts("""
+        SELECT customer_id, name, age, gender, skin_type, city -- 보안이 중요한 고객정보인 전화번호, 이메일은 애초에 제외하고 데이터 호출
+        FROM customers WHERE customer_id = ?
+    """,(customer_id,))
+    #위에서 반환받은 고객 정보가 없으면 이후의 탐색문이 무의미하므로 강제 함수 종료
+    if not profile:
+        return None
+
+    #상품이름, 카테고리, 가격은 products 표에 있고,
+    #구매일, 별점, 후기는 purchases 표에 있으므로 조인해서 한번에 꺼냄
+    products=dicts("""
+        SELECT products.product_id, products.name, products.category,products.price,purchases.purchased_at, purchases.rating,purchases.review
+        FROM purchases JOIN products ON purchases.product_id=products.product_id -- 구매목록의 상품아이디와 상품목록의 상품아이디가 같은 정보를 조인해서 가져옴        
+        WHERE purchases.customer_id=?
+    """,(customer_id,))
+
+    return {
+        "customers" : profile,
+        "products" : products
+    }
 
 
+    
 if __name__=='__main__':
     #print(customer_list(5))
-    print(purchaseInfo("C001"))
+    #print(purchaseInfo("C001"))
+    print(dashboard("C002"))
