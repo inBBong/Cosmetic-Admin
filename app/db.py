@@ -33,7 +33,7 @@ def dicts(sql,params=()):
     cur=con.execute(sql,params)
 
     columns = [c[0] for c in cur.description]
-
+    #cur.description은 DB-API 표준이라 다른 DB로 옮겨도 동작한다
     return [dict(zip(columns, row)) for row in cur.fetchall()]
 
     # columns = ["name", "age"]
