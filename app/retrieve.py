@@ -13,17 +13,18 @@ retrieve.py : 해당 DB조회함수를 가져와서 고객이 사용할 수 있�
 # 구매한 상품의 총 갯수도 같이 가져오는 로직을 dicts함수를 이용해서 반환
 
 from app.db import dicts
-
+# 고객목록 + 각 고객의 구매 건수 반환 함수
 def customer_list(limit=None):
     sql ="""
-    SELECT customers.name, customers.customer_id, COUNT(purchases.purchase_id) AS "구매 횟수"
+    SELECT customers.name, customers.customer_id, COUNT(purchases.purchase_id) AS "구매 건수"
     FROM customers LEFT JOIN purchases
     ON purchases.customer_id = customers.customer_id AND purchases.is_holdout =0
     GROUP BY customers.name, customers.customer_id
-    ORDER BY "구매 횟수" DESC
+    ORDER BY "구매 건수" DESC
     """
     vip = dicts(sql)
     return vip[:limit] if limit else vip
 
-print(customer_list(5))
+if __name__=='__main__':
+    print(customer_list(5))
     
