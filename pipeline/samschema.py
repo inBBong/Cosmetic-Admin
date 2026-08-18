@@ -195,9 +195,20 @@ con.commit()
 # 커스터머 테이블에서 전체 행의 개수 구해서 print로 출력하기
 # 커스터머 테이블에서 첫번째 행의 모든 정보 출력
 # con.execute(f"SQL문").fetchone()
-cuscnt = con.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
-print(cuscnt)
-cusinfo=con.execute("SELECT * FROM customers").fetchall()
-print(cusinfo)
+#cuscnt = con.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
+#print(cuscnt)
+#cusinfo=con.execute("SELECT * FROM customers").fetchall()
+#print(cusinfo)
 
+# 지금처럼 해당 파일에서 데이터 확인 sql 문을 실행하면 안되는 이유
+# 현재 파일이 하는 일은 다음과 같음.
+'''
+1. csv 파일 모두 불러오기 -> 파일별로 테이블명과 들어갈 데이터 분리 -> 각데이터별로 타입추론 
+-> 테이블 생성 sql문 제작 -> sql문 실행해서 테이블 생성 
+-> 생성된 테이블에 각 csv파일 데이터를 데이터타입에 맞게 변환해서 저장
+ -> 생성된 데이터의 외래키 컬럼에 인덱싱 처리
+2. 따라서 해당 파일에 단지 데이터를 확인하는 쿼리문을 날리면 그거 하나때문에 위의 무거운 프로세스가 매번
+계속 실행됨.
+3. 해결방법 : 별도의db.py를 app 폴더 안쪽에 만들어서 파이프라이은 건들지 않으면서 데이터 조회함수를 호출해 사용
+'''
 con.close()
