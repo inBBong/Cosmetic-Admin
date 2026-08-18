@@ -1,16 +1,21 @@
 import re
 import csv
+import sys
 from pathlib import Path
 import sqlite3
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
-db_file = ROOT / "cosmetic.db"
+# 이 파일은 pipeline/ 안에 있는데 app/config.py 를 가져다 쓴다.
+# 파이썬은 "실행한 파일이 있는 폴더" 를 기준으로 모듈을 찾기 때문에,
+# 프로젝트 뿌리를 검색 경로에 직접 넣어 줘야 한다
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-if db_file.exists():
-  db_file.unlink()
+# 경로는 config.py 한 곳에서만 정한다. 여기서는 가져다 쓰기만 한다
+from app.config import DATA_DIR, DB_PATH
 
-con = sqlite3.connect(db_file)
+if DB_PATH.exists():
+  DB_PATH.unlink()
+
+con = sqlite3.connect(DB_PATH)
 con.execute("PRAGMA foreign_keys = ON")
 
 # csv파일 내용 리스트 변환 함수
