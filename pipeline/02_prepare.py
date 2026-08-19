@@ -15,7 +15,7 @@ from transformers import logging as hf_logging
 # 중요한 에러 문구는 그대로출력 처리
 hf_logging.set_verbosity_error()
 
-from langchain_text_splitters import MarkdownHeaderTextSplitter
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
 from transformers import AutoTokenizer
 from app.config import DB_PATH, EMBED_TOKENIZER, EMBED_MAX_TOKENS
@@ -72,4 +72,7 @@ if __name__ == "__main__":
             sections.append((pid,pname,doc.metadata.get("section", ("머릿말")),text))
             # (제품아이디, 제품이름, 마크다운 제목, 제목에 해당하는 본문내용)
 
-    print(sections[0])
+    # 2단계 - 1단계에서 분리한 본문내용의 최대 토큰수용치를 넘어설때 2차 청킹 필요
+    respliter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+        tok, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, seperators=SEPERATORS,keep_separator="end"
+    )
