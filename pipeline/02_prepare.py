@@ -47,10 +47,29 @@ SEPERATORS = ["\n\n","\n","다","요",".",",",""]
 #    metadata={"section" : "제품소개"}
 #)
 
+# 지금부터는 글자수가 아니라 '## 주의사항' 같은 md의 제목을 경계로 해서 문자를 자름(청킹)
+md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=HEADERS)
+
+
+
 if __name__ == "__main__":
     details = query("""
         SELECT product_details.product_id, products.name, product_details.detail
         FROM product_details JOIN products ON product_details.product_id =products.product_id
         ORDER BY product_details.product_id
     """)
-    
+
+    # 글에서 ## 제품소개, ## 주요성분 같은 2단계 제목을 발견할 때 마다 본문을 분리해서 저장할 빈 리스트 생성
+    sections = []
+
+    for pid, pname, detail in details:
+        for doc in md_splitter.split_text(detail):
+            text = doc.page_content.strip() # 앞뒤공백이 제거된 md제목기준으로 나눈 본문 덩어리
+
+            if not text:
+                continue
+
+            sections.append((pid,pname,doc.metadata.get("section", ("머릿말")),text))
+            # (제품아이디, 제품이름, 마크다운 제목, 제목에 해당하는 본문내용)
+
+    print(sections[0])
