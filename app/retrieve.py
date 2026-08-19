@@ -62,18 +62,32 @@ def dashboard(customer_id):
     for row in purchases:
         by_category[row["category"]] = by_category.get(row["category"],0) + 1
     return {
+        # 만약 기존 테이블 레코드에 JOIN을 쓰지 않고 다른 테이블의 정보값을 추가로 연결하고 싶을때
+        # {**기존딕셔너리, key: value}: 기존 딕셔너리의 원본을 훼손시키지 않고 
+        # 복사한 다음에 원하는 키 값을 추가하는 방식(immutable: 불변성)
         "customers" : {**profile[0], "n_purchases":len(purchases)},
         "avg_rating" : round(sum(ratings) / len(ratings),2),
         "total_spent" : sum(prices),
         "by_category" : by_category,
-        "purchases" : purchases[0]
-        
+        "purchases" : purchases        
     }
 
 if __name__=='__main__':
     #print(customer_list(5))
     #print(purchaseInfo("C001"))
-    print(dashboard("C005"))
+    board=dashboard("C005")
+    customer=board["customers"]
+    print(f"\n대시보드 - {customer['name']}({customer['customer_id']})")
+    print(f"    {customer['age']}세, {customer['gender']}, {customer['skin_type']}피부타입,{customer['city']}, 구매{customer['n_purchases']}건")
+    print(f"    평균별점 {board['avg_rating']}, 누적구매액 {board['total_spent']:,}원")
+    # 이 고객이 가입한 날짜/ 별이나 기타 이모지 기호가 갯수만큼 출력
+    # 후기1, 후기2(줄바꿈되도록 출력)
+    print()
+    for row in board["purchases"]:
+        print(f"    {row['name']} / {'*' * row['rating']} / {row['review']} / {row['purchased_at']}")
+
+
+
     '''
     {'customers': {'customer_id': 'C005', 'name': '이은수', 'age': 53, 'gender': 'F', 'skin_type': '중성', 'city': '부산'},
      
