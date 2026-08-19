@@ -49,9 +49,24 @@ if __name__ == "__main__":
     # 현재 상품정보 데이터에서 지금 ai처리할때 수용되는 데이터의 퍼센트
     print("===========================================")
     #loss =[ f"{round(512/t,2)*100}%" if t>EMBED_MAX_TOKENS else "100%" for t in full_tokens ]
-    loss =[ f"{round(min(n,EMBED_MAX_TOKENS)*100/n,2)}%" for n in full_tokens]
-    print(loss)
+    loss = [min(n,EMBED_MAX_TOKENS)/n for n in full_tokens]
+    losspercent =[ f"{round(min(n,EMBED_MAX_TOKENS)*100/n,2)}%" for n in full_tokens]
+    print(losspercent)
 
+    print("===========================================")
+    print(f"   임베딩 모델 상한: {EMBED_MAX_TOKENS}토큰 ({EMBED_TOKENIZER})")
+    print(f"   상세 토큰 분포: {dist(full_tokens)}")
+    print(f"   상한초과율 : {len(over512)/len(full_tokens) * 100:.0f}%")
+    print(f"   평균수용률: {sum(loss)/len(loss)*100:.0f}%")
+    print("===========================================")
+
+    text = "안녕하세요. 반갑습니다."
+    print(tok.tokenize(text))
+    print("===========================================")
+    text1 = "안녕하세요"
+    text2 = "메틸데이트"
+    print(text1, tok.tokenize(text1))
+    print(text2, tok.tokenize(text2))
     # details = [
     #     ('P001', '상품명1', "상품 1의 엄청 긴 설명" ),
     #     ('P002', '상품명2', "상품 2의 엄청 긴 설명" ),
