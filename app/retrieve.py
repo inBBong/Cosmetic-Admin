@@ -84,7 +84,7 @@ if __name__=='__main__':
     # 후기1, 후기2(줄바꿈되도록 출력)
     print()
     for row in board["purchases"]:
-        print(f"    {row['name']} / {'*' * row['rating']} / {row['review']} / {row['purchased_at']}")
+        print(f"    {row['name']} / {'★ ' * row['rating']} / {row['review']} / {row['purchased_at']}")
 
 
 
