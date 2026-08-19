@@ -15,6 +15,8 @@ from transformers import logging as hf_logging
 # 중요한 에러 문구는 그대로출력 처리
 hf_logging.set_verbosity_error()
 
+from langchain_text_splitters import MarkdownHeaderTextSplitter
+
 from transformers import AutoTokenizer
 from app.config import DB_PATH, EMBED_TOKENIZER, EMBED_MAX_TOKENS
 
@@ -32,44 +34,23 @@ def dist(values):
 
 from app.retrieve import dashboard
 from app.db import query
+
+CHUNK_SIZE =384
+CHUNK_OVERLAP = 48
+PREFIX_BUDGET =32 #접두사 [상품명 > 위치] 본문내용
+RESPLIT_OVER = EMBED_MAX_TOKENS-PREFIX_BUDGET
+HEADERS = [("##","section")] #청킹할 데이터의 표시 경계 구분점 생성(Markdown)
+SEPERATORS = ["\n\n","\n","다","요",".",",",""]
+
+#Document(
+#    page_content="수분을 공급하는 크림입니다"
+#    metadata={"section" : "제품소개"}
+#)
+
 if __name__ == "__main__":
     details = query("""
         SELECT product_details.product_id, products.name, product_details.detail
         FROM product_details JOIN products ON product_details.product_id =products.product_id
         ORDER BY product_details.product_id
     """)
-    #print(details)
-    full_tokens = [ntok(detail) for _,_, detail in details]
-    print(full_tokens)
-    # mission : 현재 제품 설명중에서 최대 토큰인 512토큰을 넘어가는 글의 토큰수만 다시 리스트로 분류
-    print("===========================================")
-    over512 = [t for t in full_tokens if t>EMBED_MAX_TOKENS]
-    print(over512)
-    print(f"개수 : {len(over512)}")
-    # 현재 상품정보 데이터에서 지금 ai처리할때 수용되는 데이터의 퍼센트
-    print("===========================================")
-    #loss =[ f"{round(512/t,2)*100}%" if t>EMBED_MAX_TOKENS else "100%" for t in full_tokens ]
-    loss = [min(n,EMBED_MAX_TOKENS)/n for n in full_tokens]
-    losspercent =[ f"{round(min(n,EMBED_MAX_TOKENS)*100/n,2)}%" for n in full_tokens]
-    print(losspercent)
-
-    print("===========================================")
-    print(f"   임베딩 모델 상한: {EMBED_MAX_TOKENS}토큰 ({EMBED_TOKENIZER})")
-    print(f"   상세 토큰 분포: {dist(full_tokens)}")
-    print(f"   상한초과율 : {len(over512)/len(full_tokens) * 100:.0f}%")
-    print(f"   평균수용률: {sum(loss)/len(loss)*100:.0f}%")
-    print("===========================================")
-
-    text = "안녕하세요. 반갑습니다."
-    print(tok.tokenize(text))
-    print("===========================================")
-    text1 = "안녕하세요"
-    text2 = "메틸데이트"
-    print(text1, tok.tokenize(text1))
-    print(text2, tok.tokenize(text2))
-    # details = [
-    #     ('P001', '상품명1', "상품 1의 엄청 긴 설명" ),
-    #     ('P002', '상품명2', "상품 2의 엄청 긴 설명" ),
-    #     ...
-    # ]
     
