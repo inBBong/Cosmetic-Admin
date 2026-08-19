@@ -37,6 +37,7 @@ from app.retrieve import dashboard
 from app.db import query
 
 CHUNK_SIZE =384
+CHUNK_SIZEFORTEST = 100
 CHUNK_OVERLAP = 48
 PREFIX_BUDGET =32 #접두사 [상품명 > 위치] 본문내용
 RESPLIT_OVER = EMBED_MAX_TOKENS-PREFIX_BUDGET
@@ -59,6 +60,10 @@ if __name__ == "__main__":
         FROM product_details JOIN products ON product_details.product_id =products.product_id
         ORDER BY product_details.product_id
     """)
+    # 각 상품별 청킹하기 전 상태의 제품상세 설명 데이터의 토큰 수 모음
+    full_tokens = [ntok(detail) for _,_, detail in details]
+    # 원본에서 각 청크데이터 중 최대토큰수를 초과하는 조각
+    over = [n for n in full_tokens if n > EMBED_MAX_TOKENS ]
 
     # 글에서 ## 제품소개, ## 주요성분 같은 2단계 제목을 발견할 때 마다 본문을 분리해서 저장할 빈 리스트 생성
     sections = []
@@ -75,7 +80,7 @@ if __name__ == "__main__":
 
     # 2단계 - 1단계에서 분리한 본문내용의 최대 토큰수용치를 넘어설때 2차 청킹 필요
     resplitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
-        tok, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, separators=SEPERATORS,keep_separator="end"
+        tok, chunk_size=CHUNK_SIZEFORTEST, chunk_overlap=CHUNK_OVERLAP, separators=SEPERATORS,keep_separator="end"
     )
 
     rows = [] #(product_id, product_name, section, chunk_index, body)
@@ -83,7 +88,7 @@ if __name__ == "__main__":
 
     for pid, pname, section, text in tqdm.tqdm(sections, desc="2차 청킹(토큰)", unit=" 섹션"):
         # md파일에서 잘라낸 본문내용이 최대토큰수보다 넘어서면 카운트 1 증가시키면서 2차 청킹작업 시작
-        if ntok(text) >RESPLIT_OVER:
+        if ntok(text) >CHUNK_SIZEFORTEST:
             n_resplit +=1
             parts = resplitter.split_text(text)
         else:
@@ -91,8 +96,24 @@ if __name__ == "__main__":
 
         for i,part in enumerate(parts):
             rows.append((pid,pname,section, i, part))
+    
+    print(rows)
+    section_tokens = [ ntok(t) for _,_,_,t in sections ] # 개별 섹션 별 토큰 수
+    chunk_tokens = [ntok(body) for *_, body in rows] # 청킹된 본문텍스트의 토큰 수
+    #print(section_tokens)
+    #print(chunk_tokens)
 
-    print(rows[0])
+    print(f" 0단 (통짜일때) {len(full_tokens)} {dist(full_tokens)}")
+    print(f" 0단에서 상한({EMBED_MAX_TOKENS}) 초과가 {len(over)}건")
+    print(f" 1단 (md 형식으로 잘랐을 때) {len(sections)} {dist(section_tokens)}")
+    print(f" 2단 (문장단위로 잘랐을 때) {len(rows)} {dist(chunk_tokens)}")
+    print(f" {sum(n > EMBED_MAX_TOKENS for n in chunk_tokens)}개 / {len(sections)}개")
+
+
+
+
+
+
 
     """
     문자 데이터 청킹 흐름 (보통 실무에서 아래 순서로 작업 프로세스가 고착화되어 있음)
