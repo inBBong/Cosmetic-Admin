@@ -16,7 +16,7 @@ from transformers import logging as hf_logging
 hf_logging.set_verbosity_error()
 
 from transformers import AutoTokenizer
-from app.config import DB_PATH, EMBED_TOKENIZER
+from app.config import DB_PATH, EMBED_TOKENIZER, EMBED_MAX_TOKENS
 
 con = sqlite3.connect(DB_PATH)
 con.execute("PRAGMA foreign_keys = ON")
@@ -31,25 +31,30 @@ def dist(values):
     return (f"최소 {min(values)} / 중앙 {int(statistics.median(values))} / 최대 {max(values)}")
 
 from app.retrieve import dashboard
+from app.db import query
 if __name__ == "__main__":
-    details = [
-        "짧은 상품 설명",
-        "조금 더 긴 상품 설명입니다",
-        "아주 길고 자세한 상품 설명입니다...",
-        "간단한 설명",
-        "보통 길이의 상품 설명입니다"
-    ]
+    details = query("""
+        SELECT product_details.product_id, products.name, product_details.detail
+        FROM product_details JOIN products ON product_details.product_id =products.product_id
+        ORDER BY product_details.product_id
+    """)
+    #print(details)
+    full_tokens = [ntok(detail) for _,_, detail in details]
+    print(full_tokens)
+    # mission : 현재 제품 설명중에서 최대 토큰인 512토큰을 넘어가는 글의 토큰수만 다시 리스트로 분류
+    print("===========================================")
+    over512 = [t for t in full_tokens if t>EMBED_MAX_TOKENS]
+    print(over512)
+    print(f"개수 : {len(over512)}")
+    # 현재 상품정보 데이터에서 지금 ai처리할때 수용되는 데이터의 퍼센트
+    print("===========================================")
+    #loss =[ f"{round(512/t,2)*100}%" if t>EMBED_MAX_TOKENS else "100%" for t in full_tokens ]
+    loss =[ f"{round(min(n,EMBED_MAX_TOKENS)*100/n,2)}%" for n in full_tokens]
+    print(loss)
 
-    #token_count = [ntok(detail) for detail in details]
-    #print(token_count) # [5, 8, 10, 4, 8] -> [4,5,8,8,10]
-    #print(dist(token_count)) # 최소 4 / 중앙 8 / 최대 10
-
-    # dist로 반환받은 중앙값은 평균값이 아님
-    # 왜 우리는 토큰 검사를 할 때 평균값이 아닌 중앙값을 고려해야 되는지 고민
-    # mission 쿼리를 가져온 후에 
-    board=dashboard("C005")
-    reviews=[r["review"] for r in board["purchases"]]
-
-    token_count = [ntok(review) for review in reviews]
-    print(token_count)
-    print(dist(token_count))
+    # details = [
+    #     ('P001', '상품명1', "상품 1의 엄청 긴 설명" ),
+    #     ('P002', '상품명2', "상품 2의 엄청 긴 설명" ),
+    #     ...
+    # ]
+    
