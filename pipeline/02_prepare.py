@@ -126,7 +126,7 @@ if __name__ == "__main__":
     # 테이블이 만들어지는 순서는 section -> chunks -> chunk_vectors순이기 때문에
     # 테이블 제거시에는 역순으로 제거
     con.execute("DROP TABLE IF EXISTS chunk_vectors")   # 의미 추론을 위한 조각들의 좌표값이 들어가는 테이블
-    con.execute("DROP TABLE IF EXISTS chunks")          # 사용자 요청시 빠르게 문맥에 맞는 키워드를 탐색하기 위한 조각들 ( 하댕 조각이 원뭄ㄴ인 섹션을 바라봄)
+    con.execute("DROP TABLE IF EXISTS chunks")          # 사용자 요청시 빠르게 문맥에 맞는 키워드를 탐색하기 위한 조각들 ( 해당 조각이 원문인 섹션을 바라봄)
     con.execute("DROP TABLE IF EXISTS sections")        # LLM이 참고해야 되는 원문이 들어가는 테이블
 
     con.execute("""
@@ -142,12 +142,12 @@ if __name__ == "__main__":
 
     con.execute("""
       CREATE TABLE chunks (
-        chunk_id     INTEGER PRIMARY KEY,   --자동으로 들어가는 각 레코드 PK  
-        section_id   INTEGER NOT NULL,      --해당 청킹된 조각이 바라보는 섹션 테이블 아이디
-        product_id   TEXT NOT NULL,         --해당 청킹된 조각이 바라보는 제품 아이디
-        section      TEXT NOT NULL,         --'주의사항' 같은 항 섹션별 제목
-        text         TEXT NOT NULL,         --접두어가 붙기전의 원문
-        body         TEXT NOT NULL,         --접두어가 붙은 원문
+        chunk_id     INTEGER PRIMARY KEY,   -- 자동으로 들어가는 각 레코드 PK  
+        section_id   INTEGER NOT NULL,      -- 해당 청킹된 조각이 바라보는 섹션 테이블 아이디
+        product_id   TEXT NOT NULL,         -- 해당 청킹된 조각이 바라보는 제품 아이디
+        section      TEXT NOT NULL,         -- '주의사항' 같은 항 섹션별 제목
+        text         TEXT NOT NULL,         -- 접두어가 붙기전의 원문
+        body         TEXT NOT NULL,         -- 접두어가 붙은 원문
         n_tokens     INTEGER NOT NULL,
         FOREIGN KEY (section_id) REFERENCES sections(section_id),
         FOREIGN KEY (product_id) REFERENCES products(product_id),
@@ -158,9 +158,56 @@ if __name__ == "__main__":
     con.execute("CREATE INDEX idx_chunks_proudct_id ON chunks(product_id)")
     con.execute("CREATE INDEX idx_sections_proudct_id ON chunks(product_id)")
     
+    # ===================================
+    #  테이블에 데이터 저장
+    # ====================================
 
+    # sections 테이블에 데이터 저장
+    section_id_of = {}
+    # {
+    #   ("P001","제품설명"):1,
+    #   ("P001","주의사항"):2,
+    #   ("P001","성분"):3,
+    # }
 
+    # sections테이블과 chunks 테이블을 조인시키지 않으면 연결시킬수 있는 접점이 없음
+    # 2개 테이블에 접점일수 있는 부분은 동일하게 들어가는 컬럼명인 pid, section밖에 없음
+    # 저 두개의 값을 키로 활용하는 공통의 접점을 생성
+    # section 테이블에서 필드값에 숫자는 무조건 정수인 PK가 지정되어 있기 때문에 공통의 컬럼값을 매칭처리 필요 (pic, section)
 
+    # 이렇게 번거롭게 sections 테이블과 chunks 테이블을 연결하는 이유
+    # 테이블에 원본데이터를 꺼낸 이후에 청킹을 시작하면 문제가 안되지만
+    # 유지보수의 편의성을 위해서 실제 db에 데이터를 저장하기 전에 청킹과 벡터라이징을 다 끝내 놓은 상태
+    # 이 때 청킹이 완료된 상태이기 떄문에 저 2 테이블은 연결할 방법이 없음
+    # 이때 유일한 접점이 (상품아이디와 상품의 섹션 제목) 해당 필드가 공통으로 공유하는 값이 청킹 데이터가 바라봐야될 
+    # 원본 테이블의 행 
+
+    for pid, _pname, section, text in sections:
+      cur = con.execute(
+        "INSERT INTO sections (product_id, section, text, n_tokens) VALUES (?,?,?,?),"
+        (pid, section, text, ntok(text)),
+      )
+      section_id_of[(pid, section)] = cur.lastrowid
+
+    # chunks 테이블에 데이터 저장
+    for pid, pname, section, chunk_index, part in rows:
+      text = with_context(pname, section, part)
+      con.execute("""
+        INSERT INTO chunks (section_id, product_id, section, chunk_index, text, body, n_tokens)
+        VALUES (?,?,?,?,?,?,?), (section_id[(pid, section)], pid, section, chunk_index, part, text, ntok(part))
+      """)
+
+    con.commit();
+
+    #======================================================
+    # 테이블에 저장된 데이터 개수와 각 청크 별 토큰 개수 확인
+    #======================================================
+    stored = [n for (n,) in con.execute("SELECT n_tokens FROM chunks")]
+    print(f"    sections {len(sections)}행")
+    print(f"    chunks {len(sections)}행")
+    print(f"    상한 {len(sections)} 초과: {sum(n> EMBED_MAX_TOKENS for n in stored)}개 \n")
+
+    
 
     """
     문자 데이터 청킹 흐름 (보통 실무에서 아래 순서로 작업 프로세스가 고착화되어 있음)
