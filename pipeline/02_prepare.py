@@ -21,6 +21,9 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from transformers import AutoTokenizer
 from app.config import DB_PATH, EMBED_TOKENIZER, EMBED_MAX_TOKENS
 
+from app.retrieve import dashboard
+from app.db import query
+
 con = sqlite3.connect(DB_PATH)
 con.execute("PRAGMA foreign_keys = ON")
 
@@ -33,13 +36,20 @@ def ntok(text):
 def dist(values):
     return (f"최소 {min(values)} / 중앙 {int(statistics.median(values))} / 최대 {max(values)}")
 
-from app.retrieve import dashboard
-from app.db import query
+# 접두어를 포함시켜 본문 생성 함수 (모델에게 전달하는 데이터의 문맥을 빠르게 파악시키기 위함)
+# 세번쨰로 전달되는 인자값은 2차 청킹된 데이터가 1차 청킹만 완료된 본문
+def with_context(pname, section, body):
+    return f"[{pname} > {section}]{body}"
+
+# [스킨로션 > 주의사항] 어쩌구 이렇게 써야 됩니다.
+
+
+
 
 CHUNK_SIZE =384
 CHUNK_SIZEFORTEST = 100
 CHUNK_OVERLAP = 48
-PREFIX_BUDGET =32 #접두사 [상품명 > 위치] 본문내용
+PREFIX_BUDGET =32 #접두사 [제품명 > 중제목] 본문내용
 RESPLIT_OVER = EMBED_MAX_TOKENS-PREFIX_BUDGET
 HEADERS = [("##","section")] #청킹할 데이터의 표시 경계 구분점 생성(Markdown)
 SEPERATORS = ["\n\n","\n","다","요",".",",",""]
@@ -80,7 +90,7 @@ if __name__ == "__main__":
 
     # 2단계 - 1단계에서 분리한 본문내용의 최대 토큰수용치를 넘어설때 2차 청킹 필요
     resplitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
-        tok, chunk_size=CHUNK_SIZEFORTEST, chunk_overlap=CHUNK_OVERLAP, separators=SEPERATORS,keep_separator="end"
+        tok, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, separators=SEPERATORS,keep_separator="end"
     )
 
     rows = [] #(product_id, product_name, section, chunk_index, body)
@@ -88,7 +98,7 @@ if __name__ == "__main__":
 
     for pid, pname, section, text in tqdm.tqdm(sections, desc="2차 청킹(토큰)", unit=" 섹션"):
         # md파일에서 잘라낸 본문내용이 최대토큰수보다 넘어서면 카운트 1 증가시키면서 2차 청킹작업 시작
-        if ntok(text) >CHUNK_SIZEFORTEST:
+        if ntok(text) >RESPLIT_OVER:
             n_resplit +=1
             parts = resplitter.split_text(text)
         else:
@@ -96,8 +106,10 @@ if __name__ == "__main__":
 
         for i,part in enumerate(parts):
             rows.append((pid,pname,section, i, part))
-    
-    print(rows)
+
+    example = next(r for r in rows if r[2] =="주의사항")
+    print(f" 붙이기 전 :{example[4][:30]}")
+    print(f" 붙인 후 :  {with_context(example[1],example[2],example[4][:30])}...")
     section_tokens = [ ntok(t) for _,_,_,t in sections ] # 개별 섹션 별 토큰 수
     chunk_tokens = [ntok(body) for *_, body in rows] # 청킹된 본문텍스트의 토큰 수
     #print(section_tokens)
@@ -108,8 +120,16 @@ if __name__ == "__main__":
     print(f" 1단 (md 형식으로 잘랐을 때) {len(sections)} {dist(section_tokens)}")
     print(f" 2단 (문장단위로 잘랐을 때) {len(rows)} {dist(chunk_tokens)}")
     print(f" {sum(n > EMBED_MAX_TOKENS for n in chunk_tokens)}개 / {len(sections)}개")
+    print(tok.encode("안녕하세요"))
+    print(tok.decode([0, 107687, 2]))
 
-
+    # 목적에 맞는 청킹 처리 (우리가 청킹을 하는 이유)
+    # 데이터 청킹을 짧게 해야할 때 vs 길게 해야할 때
+    # - 청킹데이터를 짜르는 이유는 : 사용자가 질문한 맥락에 맞는 자료조각을 탐색하기 위함
+    # - 탐색이 완료되면 제일 연관도가 높은 조각들을 비교해서 그 조각이 바라보는 원문을 사용자에게
+    # 내보내면 됨
+    # - 선택된 위의 원문과 사용자 정보를 조합해서 LLM 전달
+    # - LLM 제공받은 정보를 통해서 그럴싸한 문장을 만들어내 내보내줌
 
 
 
@@ -124,7 +144,6 @@ if __name__ == "__main__":
     (분기-B) 1차 단계에서 따른 청킹데이터중 최대토큰을 넘어가는게 있으면 2차 청킹작업 시작
 
     2- 1차에서 짤린 청킹덩어리중 최대토큰이 넘어가는 덩어리는 다시 반복돌면서 이번엔 문장단위로 청킹시도 (문장단위)
-    3- 2차에서 짤랐는데도 아직도 최대토큰수를 넘어가면 계속 반복돌며 청킹
 
     **추가적으로 알아두면 좋은 개념**
     [상품명 > 위치] 본문내용 : 이런식으로 본문앞에 구분자를 붙이는 이유 
