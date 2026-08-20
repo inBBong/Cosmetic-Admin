@@ -24,8 +24,6 @@ from app.config import DB_PATH, EMBED_TOKENIZER, EMBED_MAX_TOKENS
 from app.retrieve import dashboard
 from app.db import query
 
-con = sqlite3.connect(DB_PATH)
-con.execute("PRAGMA foreign_keys = ON")
 
 tok = AutoTokenizer.from_pretrained(EMBED_TOKENIZER)
 # 텍스트를 인자로 전달받아서 모델이 이해하는 토큰으로 나누고 토큰의 개수를 반환하는 함수
@@ -107,21 +105,13 @@ if __name__ == "__main__":
         for i,part in enumerate(parts):
             rows.append((pid,pname,section, i, part))
 
-    example = next(r for r in rows if r[2] =="주의사항")
-    print(f" 붙이기 전 :{example[4][:30]}")
-    print(f" 붙인 후 :  {with_context(example[1],example[2],example[4][:30])}...")
-    section_tokens = [ ntok(t) for _,_,_,t in sections ] # 개별 섹션 별 토큰 수
-    chunk_tokens = [ntok(body) for *_, body in rows] # 청킹된 본문텍스트의 토큰 수
-    #print(section_tokens)
-    #print(chunk_tokens)
+    #=====================================================
+    # 청킹 데이터가 들어갈 테이블 생성
+    #=====================================================
 
-    print(f" 0단 (통짜일때) {len(full_tokens)} {dist(full_tokens)}")
-    print(f" 0단에서 상한({EMBED_MAX_TOKENS}) 초과가 {len(over)}건")
-    print(f" 1단 (md 형식으로 잘랐을 때) {len(sections)} {dist(section_tokens)}")
-    print(f" 2단 (문장단위로 잘랐을 때) {len(rows)} {dist(chunk_tokens)}")
-    print(f" {sum(n > EMBED_MAX_TOKENS for n in chunk_tokens)}개 / {len(sections)}개")
-    print(tok.encode("안녕하세요"))
-    print(tok.decode([0, 107687, 2]))
+
+
+
 
     # 목적에 맞는 청킹 처리 (우리가 청킹을 하는 이유)
     # 데이터 청킹을 짧게 해야할 때 vs 길게 해야할 때
@@ -130,7 +120,44 @@ if __name__ == "__main__":
     # 내보내면 됨
     # - 선택된 위의 원문과 사용자 정보를 조합해서 LLM 전달
     # - LLM 제공받은 정보를 통해서 그럴싸한 문장을 만들어내 내보내줌
+    con = sqlite3.connect(DB_PATH)
+    con.execute("PRAGMA foreign_keys = ON")
 
+    # 테이블이 만들어지는 순서는 section -> chunks -> chunk_vectors순이기 때문에
+    # 테이블 제거시에는 역순으로 제거
+    con.execute("DROP TABLE IF EXISTS chunk_vectors")   # 의미 추론을 위한 조각들의 좌표값이 들어가는 테이블
+    con.execute("DROP TABLE IF EXISTS chunks")          # 사용자 요청시 빠르게 문맥에 맞는 키워드를 탐색하기 위한 조각들 ( 하댕 조각이 원뭄ㄴ인 섹션을 바라봄)
+    con.execute("DROP TABLE IF EXISTS sections")        # LLM이 참고해야 되는 원문이 들어가는 테이블
+
+    con.execute("""
+      CREATE TABLE sections (
+        section_id   INTEGER PRIMARY KEY,  --자동으로 들어가는 값 레코드가 추가될때마다 1씩 자동카운트
+        product_id   TEXT NOT NULL,        --어느 상품인지
+        section      TEXT NOT NULL,        --'주의사항' 같은 항 섹션별 제목
+        text         TEXT NOT NULL,        --접두어가 붙기전의 원문
+        n_tokens     INTEGER NOT NULL,     --해당 청크 데이터의 토큰수 (미리 세어서 집어넣으면 시간 절약)
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
+      )
+    """)
+
+    con.execute("""
+      CREATE TABLE chunks (
+        chunk_id     INTEGER PRIMARY KEY,   --자동으로 들어가는 각 레코드 PK  
+        section_id   INTEGER NOT NULL,      --해당 청킹된 조각이 바라보는 섹션 테이블 아이디
+        product_id   TEXT NOT NULL,         --해당 청킹된 조각이 바라보는 제품 아이디
+        section      TEXT NOT NULL,         --'주의사항' 같은 항 섹션별 제목
+        text         TEXT NOT NULL,         --접두어가 붙기전의 원문
+        body         TEXT NOT NULL,         --접두어가 붙은 원문
+        n_tokens     INTEGER NOT NULL,
+        FOREIGN KEY (section_id) REFERENCES sections(section_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id),
+      )
+    """)
+
+    # 생성된 테이블의 외래키 컬럼에 index 추가
+    con.execute("CREATE INDEX idx_chunks_proudct_id ON chunks(product_id)")
+    con.execute("CREATE INDEX idx_sections_proudct_id ON chunks(product_id)")
+    
 
 
 
