@@ -146,11 +146,12 @@ if __name__ == "__main__":
         section_id   INTEGER NOT NULL,      -- 해당 청킹된 조각이 바라보는 섹션 테이블 아이디
         product_id   TEXT NOT NULL,         -- 해당 청킹된 조각이 바라보는 제품 아이디
         section      TEXT NOT NULL,         -- '주의사항' 같은 항 섹션별 제목
+        chunk_index INTEGER NOT NULL,       -- 섹션 안에서 몇 번째 조각인지
         text         TEXT NOT NULL,         -- 접두어가 붙기전의 원문
         body         TEXT NOT NULL,         -- 접두어가 붙은 원문
         n_tokens     INTEGER NOT NULL,
         FOREIGN KEY (section_id) REFERENCES sections(section_id),
-        FOREIGN KEY (product_id) REFERENCES products(product_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
       )
     """)
 
@@ -184,18 +185,18 @@ if __name__ == "__main__":
 
     for pid, _pname, section, text in sections:
       cur = con.execute(
-        "INSERT INTO sections (product_id, section, text, n_tokens) VALUES (?,?,?,?),"
+        "INSERT INTO sections (product_id, section, text, n_tokens) VALUES (?,?,?,?)",
         (pid, section, text, ntok(text)),
       )
       section_id_of[(pid, section)] = cur.lastrowid
 
     # chunks 테이블에 데이터 저장
-    for pid, pname, section, chunk_index, part in rows:
+    for pid, pname, section, chunk_index, body in rows:
       text = with_context(pname, section, part)
       con.execute("""
         INSERT INTO chunks (section_id, product_id, section, chunk_index, text, body, n_tokens)
-        VALUES (?,?,?,?,?,?,?), (section_id[(pid, section)], pid, section, chunk_index, part, text, ntok(part))
-      """)
+        VALUES (?,?,?,?,?,?,?)""", (section_id_of[(pid, section)], pid, section, chunk_index, text, body, ntok(part)),
+      )
 
     con.commit();
 
@@ -207,7 +208,7 @@ if __name__ == "__main__":
     print(f"    chunks {len(sections)}행")
     print(f"    상한 {len(sections)} 초과: {sum(n> EMBED_MAX_TOKENS for n in stored)}개 \n")
 
-    
+
 
     """
     문자 데이터 청킹 흐름 (보통 실무에서 아래 순서로 작업 프로세스가 고착화되어 있음)
