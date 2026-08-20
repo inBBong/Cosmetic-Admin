@@ -55,5 +55,7 @@ EMBED_TOKENIZER = "intfloat/multilingual-e5-small"
 # 해당 모델의 최대토큰수가 512인데 전달의 문자정보의 토큰 개수가 넘어설때 512 넘어서는 정보값은 짤려서 누락됨
 EMBED_MAX_TOKENS = 512
 
+EMBED_MODEL = "intfloat/multilingual-e5-small"
+
 
 
